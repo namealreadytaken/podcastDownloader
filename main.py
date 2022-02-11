@@ -4,6 +4,7 @@ import re
 import requests
 import time
 import feedparser
+import configparser
 from downloader import Downloader
 
 from PySide6.QtUiTools import QUiLoader
@@ -11,28 +12,15 @@ from PySide6.QtWidgets import QPushButton, QTreeView, QLineEdit, QFileDialog, QP
 from PySide6.QtCore import QFile, QObject, Qt, QSortFilterProxyModel, QRegularExpression
 from PySide6.QtGui import QStandardItemModel, QStandardItem
 
+
 class MySortFilterProxyModel(QSortFilterProxyModel):
     def __init__(self, parent=None):
         super(MySortFilterProxyModel, self).__init__(parent)
-
-    # MySortFilterProxyModel(QObject *parent = 0);
-    #
-    # QDate filterMinimumDate() const { return minDate; }
-    # void setFilterMinimumDate(QDate date);
-    #
-    # QDate filterMaximumDate() const { return maxDate; }
-    # void setFilterMaximumDate(QDate date);
 
     def filterAcceptsRow(self, source_row, source_parent):
         index0 = self.sourceModel().index(source_row, 0, source_parent)
 
         return bool(re.search(self.filterRegularExpression().pattern(), str(self.sourceModel().data(index0))))
-
-    # bool lessThan(const QModelIndex &left, const QModelIndex &right) const override;
-    # bool dateInRange(QDate date) const;
-    #
-    # QDate minDate;
-    # QDate maxDate;
 
 
 class Form(QObject):
@@ -66,18 +54,27 @@ class Form(QObject):
         self.filterLine.editingFinished.connect(self.textFilterChanged)
         btnDownload = self.window.findChild(QPushButton, 'pushButtonDownload')
         btnDownload.clicked.connect(self.download_mp3)
-
+        self.config()
         self.window.show()
 
+    def config(self):
+        config = configparser.ConfigParser()
+        if not os.path.exists('config.ini'):
+            config['DEFAULT'] = {'fileFormat': '{name} {date}.mp3'}
+            with open('config.ini', 'w') as configfile:
+                config.write(configfile)
+        config.read('config.ini')
+        self.fileFormat = config['DEFAULT']['fileFormat']
+
     def setProgress(self, progress):
-        print(progress)
         progressBar = self.window.findChild(QProgressBar, 'progressBar')
         progressBar.setValue(progress*100)
 
     def download_mp3(self):
         dirname = self.folderLine.text()
         indexes = self.treeView.selectionModel().selectedRows()
-        self.down = Downloader(dirname, indexes)
+        #need to send only links and associated save paths
+        self.down = Downloader(dirname, indexes, self.fileFormat)
         self.down.updateProgress.connect(self.setProgress)
         self.down.start()
 
@@ -90,21 +87,19 @@ class Form(QObject):
         response = requests.get(self.RSSLine.text())
         podcast = feedparser.parse(response.content)
         for item in podcast.entries:
-            date = "(%d/%02d/%02d)" % (item.published_parsed.tm_year,\
-              item.published_parsed.tm_mon, \
-              item.published_parsed.tm_mday)
-            url = QStandardItem(item.link)
+            date = f'({item.published_parsed.tm_year}/{item.published_parsed.tm_mon:02}/{item.published_parsed.tm_mday:02})'
+            url = QStandardItem(item.links[0].href)
             title = QStandardItem(item.title)
             date = QStandardItem(str(date))
             stamp = QStandardItem(str(time.mktime(item.published_parsed)))
             line = [title, date, url, stamp]
             self.episodeModel.appendRow(line)
-        self.episodeModel.sort(3, Qt.DescendingOrder)
-
+        self.proxyModel.sort(3, Qt.DescendingOrder)
 
     def textFilterChanged(self):
         regExp = QRegularExpression(self.filterLine.text())
         self.proxyModel.setFilterRegularExpression(regExp)
+
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
