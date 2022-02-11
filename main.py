@@ -89,6 +89,9 @@ class Form(QObject):
         for item in podcast.entries:
             date = f'({item.published_parsed.tm_year}/{item.published_parsed.tm_mon:02}/{item.published_parsed.tm_mday:02})'
             url = QStandardItem(item.links[0].href)
+            for links in item.links:
+                if links.type == 'audio/mpeg':
+                    url = QStandardItem(links.href)
             title = QStandardItem(item.title)
             date = QStandardItem(str(date))
             stamp = QStandardItem(str(time.mktime(item.published_parsed)))

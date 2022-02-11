@@ -33,4 +33,4 @@ class Downloader(QtCore.QThread):
             response = requests.get(index.siblingAtColumn(2).data())
             with open(os.path.join(self.dirName, filename), "wb") as f:
                 f.write(response.content)
-            self.updateProgress.emit(current/total)
+            self.updateProgress.emit((current+1)/total)
