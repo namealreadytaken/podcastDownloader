@@ -4,18 +4,12 @@ import re
 import requests
 import time
 import feedparser
+from downloader import Downloader
 
 from PySide6.QtUiTools import QUiLoader
-from PySide6.QtWidgets import QPushButton, QTreeView, QLineEdit, QFileDialog, QApplication
+from PySide6.QtWidgets import QPushButton, QTreeView, QLineEdit, QFileDialog, QProgressBar, QApplication
 from PySide6.QtCore import QFile, QObject, Qt, QSortFilterProxyModel, QRegularExpression
 from PySide6.QtGui import QStandardItemModel, QStandardItem
-
-def filenameCleanup(name):
-    s = str(name).strip().replace(' ', '_')
-    s = re.sub(r'(?u)[^-\w.]', '', s)
-    if s in {'', '.', '..'}:
-        return 'error.jpg'
-    return s
 
 class MySortFilterProxyModel(QSortFilterProxyModel):
     def __init__(self, parent=None):
@@ -75,14 +69,17 @@ class Form(QObject):
 
         self.window.show()
 
+    def setProgress(self, progress):
+        print(progress)
+        progressBar = self.window.findChild(QProgressBar, 'progressBar')
+        progressBar.setValue(progress*100)
+
     def download_mp3(self):
         dirname = self.folderLine.text()
         indexes = self.treeView.selectionModel().selectedRows()
-        for index in indexes:
-            filename = filenameCleanup(index.data() + ".mp3")
-            response = requests.get(index.siblingAtColumn(2).data())
-            with open(os.path.join(dirname, filename), "wb") as f:
-                f.write(response.content)
+        self.down = Downloader(dirname, indexes)
+        self.down.updateProgress.connect(self.setProgress)
+        self.down.start()
 
     def find_folder(self):
         selected_directory = QFileDialog.getExistingDirectory()
@@ -102,6 +99,7 @@ class Form(QObject):
             stamp = QStandardItem(str(time.mktime(item.published_parsed)))
             line = [title, date, url, stamp]
             self.episodeModel.appendRow(line)
+        self.episodeModel.sort(3, Qt.DescendingOrder)
 
 
     def textFilterChanged(self):
