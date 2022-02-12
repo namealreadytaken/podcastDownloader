@@ -5,10 +5,11 @@ import requests
 import time
 import feedparser
 import configparser
+import pickle
 from downloader import Downloader
 
 from PySide6.QtUiTools import QUiLoader
-from PySide6.QtWidgets import QPushButton, QTreeView, QLineEdit, QFileDialog, QProgressBar, QApplication
+from PySide6.QtWidgets import QPushButton, QTreeView, QComboBox, QLineEdit, QFileDialog, QProgressBar, QApplication
 from PySide6.QtCore import QFile, QObject, Qt, QSortFilterProxyModel, QRegularExpression
 from PySide6.QtGui import QStandardItemModel, QStandardItem
 
@@ -42,7 +43,7 @@ class Form(QObject):
         self.proxyModel = MySortFilterProxyModel()
         self.proxyModel.setSourceModel(self.episodeModel)
 
-        self.RSSLine = self.window.findChild(QLineEdit, 'lineEditRSS')
+        self.RSSLine = self.window.findChild(QComboBox, 'comboBoxRss')
         self.folderLine = self.window.findChild(QLineEdit, 'lineEditFolder')
         self.filterLine = self.window.findChild(QLineEdit, 'lineEditFilter')
         self.treeView = self.window.findChild(QTreeView, 'treeView')
@@ -54,6 +55,7 @@ class Form(QObject):
         self.filterLine.editingFinished.connect(self.textFilterChanged)
         btnDownload = self.window.findChild(QPushButton, 'pushButtonDownload')
         btnDownload.clicked.connect(self.download_mp3)
+        self.knownPodcasts = {}
         self.config()
         self.window.show()
 
@@ -66,6 +68,12 @@ class Form(QObject):
         config.read('config.ini')
         self.fileFormat = config['DEFAULT']['fileFormat']
 
+        if os.path.exists('knownPodcasts.pickle'):
+            with open('knownPodcasts.pickle', 'rb') as knownPodcasts:
+                self.knownPodcasts = pickle.load(knownPodcasts)
+            print(self.knownPodcasts)
+            self.RSSLine.addItems(self.knownPodcasts.keys())
+
     def setProgress(self, progress):
         progressBar = self.window.findChild(QProgressBar, 'progressBar')
         progressBar.setValue(progress*100)
@@ -73,7 +81,7 @@ class Form(QObject):
     def download_mp3(self):
         dirname = self.folderLine.text()
         indexes = self.treeView.selectionModel().selectedRows()
-        #need to send only links and associated save paths
+        # need to send only links and associated save paths
         self.down = Downloader(dirname, indexes, self.fileFormat)
         self.down.updateProgress.connect(self.setProgress)
         self.down.start()
@@ -84,8 +92,12 @@ class Form(QObject):
         self.download_RSS()
 
     def download_RSS(self):
-        response = requests.get(self.RSSLine.text())
+        rssLink = self.RSSLine.currentText()
+        response = requests.get(rssLink)
         podcast = feedparser.parse(response.content)
+        if len(podcast.entries) == 0:
+            return
+        self.episodeModel.removeRows(0, self.episodeModel.rowCount())
         for item in podcast.entries:
             date = f'({item.published_parsed.tm_year}/{item.published_parsed.tm_mon:02}/{item.published_parsed.tm_mday:02})'
             url = QStandardItem(item.links[0].href)
@@ -98,6 +110,11 @@ class Form(QObject):
             line = [title, date, url, stamp]
             self.episodeModel.appendRow(line)
         self.proxyModel.sort(3, Qt.DescendingOrder)
+        mostRecent = self.proxyModel.index(0, 3).data()
+        self.knownPodcasts[rssLink] = mostRecent
+        with open('knownPodcasts.pickle', 'wb') as knownPodcasts:
+            pickle.dump(self.knownPodcasts, knownPodcasts)
+
 
     def textFilterChanged(self):
         regExp = QRegularExpression(self.filterLine.text())

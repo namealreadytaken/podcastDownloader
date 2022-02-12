@@ -4,12 +4,14 @@ import os
 import re
 import requests
 
+
 def filenameCleanup(name):
     s = str(name).strip().replace(' ', '_')
     s = re.sub(r'(?u)[^-\w.]', '', s)
     if s in {'', '.', '..'}:
         return 'error.jpg'
     return s
+
 
 class Downloader(QtCore.QThread):
 
