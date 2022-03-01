@@ -14,6 +14,14 @@ from PySide6.QtCore import QFile, QObject, Qt, QSortFilterProxyModel, QRegularEx
 from PySide6.QtGui import QStandardItemModel, QStandardItem
 
 
+def filenameCleanup(name):
+    s = str(name).strip().replace(' ', '_')
+    s = re.sub(r'(?u)[^-\w.]', '', s)
+    if s in {'', '.', '..'}:
+        return 'error.jpg'
+    return s
+
+
 class MySortFilterProxyModel(QSortFilterProxyModel):
     def __init__(self, parent=None):
         super(MySortFilterProxyModel, self).__init__(parent)
@@ -71,18 +79,27 @@ class Form(QObject):
         if os.path.exists('knownPodcasts.pickle'):
             with open('knownPodcasts.pickle', 'rb') as knownPodcasts:
                 self.knownPodcasts = pickle.load(knownPodcasts)
-            print(self.knownPodcasts)
             self.RSSLine.addItems(self.knownPodcasts.keys())
 
     def setProgress(self, progress):
         progressBar = self.window.findChild(QProgressBar, 'progressBar')
         progressBar.setValue(progress*100)
 
-    def download_mp3(self):
-        dirname = self.folderLine.text()
+    def prepareDownload(self):
         indexes = self.treeView.selectionModel().selectedRows()
-        # need to send only links and associated save paths
-        self.down = Downloader(dirname, indexes, self.fileFormat)
+        dirName = self.folderLine.text()
+        downloads = []
+        for current, index in enumerate(indexes):
+            name = index.data()
+            date = index.siblingAtColumn(1).data()
+            link = index.siblingAtColumn(2).data()
+            filename = os.path.join(dirName, filenameCleanup(self.fileFormat.format(name=name, date=date)))
+            downloads.append({'filename': filename, 'link': link})
+        return downloads
+
+    def download_mp3(self):
+        downloads = self.prepareDownload()
+        self.down = Downloader(downloads)
         self.down.updateProgress.connect(self.setProgress)
         self.down.start()
 
