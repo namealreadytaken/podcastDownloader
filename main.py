@@ -124,4 +124,4 @@ class Form(QObject):
 if __name__ == '__main__':
     app = QApplication(sys.argv)
     form = Form(os.path.join(os.path.dirname(__file__), "form.ui"))
-    sys.exit(app.exec_())
+    sys.exit(app.exec())
