@@ -1,9 +1,7 @@
 from PySide6 import QtCore
-from PySide6.QtGui import QStandardItemModel, QStandardItem
 import os
-import re
 import requests
-
+from mutagen.easyid3 import EasyID3
 
 class Downloader(QtCore.QThread):
 
@@ -19,9 +17,13 @@ class Downloader(QtCore.QThread):
         for current, index in enumerate(self.downloads):
             filename = index['filename']
             link = index['link']
+            tracknumber = index['tracknumber']
 #            resGet = requests.get(link, stream=True)
 #            print(resGet.headers['Content-length'])
             response = requests.get(link)
             with open(filename, "wb") as f:
                 f.write(response.content)
+            audio = EasyID3(filename)
+            audio["tracknumber"] = tracknumber
+            audio.save()
             self.updateProgress.emit((current+1)/total)

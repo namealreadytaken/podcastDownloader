@@ -43,11 +43,12 @@ class Form(QObject):
         self.window = loader.load(ui_file)
         ui_file.close()
 
-        self.episodeModel = QStandardItemModel(0, 4)
+        self.episodeModel = QStandardItemModel(0, 5)
         self.episodeModel.setHeaderData(0, Qt.Horizontal, "Title")
         self.episodeModel.setHeaderData(1, Qt.Horizontal, "Date")
         self.episodeModel.setHeaderData(2, Qt.Horizontal, "Link")
-        self.episodeModel.setHeaderData(3, Qt.Horizontal, "timestamp")
+        self.episodeModel.setHeaderData(3, Qt.Horizontal, "Timestamp")
+        self.episodeModel.setHeaderData(4, Qt.Horizontal, "EpisodeNumber")
         self.proxyModel = MySortFilterProxyModel()
         self.proxyModel.setSourceModel(self.episodeModel)
 
@@ -58,6 +59,7 @@ class Form(QObject):
         self.treeView.setModel(self.proxyModel)
         self.treeView.hideColumn(2)
         self.treeView.hideColumn(3)
+        self.treeView.hideColumn(4)
         btn = self.window.findChild(QPushButton, 'pushButtonFolder')
         btn.clicked.connect(self.find_folder)
         self.filterLine.editingFinished.connect(self.textFilterChanged)
@@ -93,8 +95,9 @@ class Form(QObject):
             name = index.data()
             date = index.siblingAtColumn(1).data()
             link = index.siblingAtColumn(2).data()
+            tracknumber = index.siblingAtColumn(4).data()
             filename = os.path.join(dirName, filenameCleanup(self.fileFormat.format(name=name, date=date)))
-            downloads.append({'filename': filename, 'link': link})
+            downloads.append({'filename': filename, 'link': link, 'tracknumber': tracknumber})
         return downloads
 
     def download_mp3(self):
@@ -115,7 +118,8 @@ class Form(QObject):
         if len(podcast.entries) == 0:
             return
         self.episodeModel.removeRows(0, self.episodeModel.rowCount())
-        for item in podcast.entries:
+        size = len(podcast.entries)
+        for index, item in enumerate(podcast.entries):
             date = f'({item.published_parsed.tm_year}/{item.published_parsed.tm_mon:02}/{item.published_parsed.tm_mday:02})'
             url = QStandardItem(item.links[0].href)
             for links in item.links:
@@ -124,14 +128,14 @@ class Form(QObject):
             title = QStandardItem(item.title)
             date = QStandardItem(str(date))
             stamp = QStandardItem(str(time.mktime(item.published_parsed)))
-            line = [title, date, url, stamp]
+            tracknumber = QStandardItem(str(size - index))
+            line = [title, date, url, stamp, tracknumber]
             self.episodeModel.appendRow(line)
         self.proxyModel.sort(3, Qt.DescendingOrder)
         mostRecent = self.proxyModel.index(0, 3).data()
         self.knownPodcasts[rssLink] = mostRecent
         with open('knownPodcasts.pickle', 'wb') as knownPodcasts:
             pickle.dump(self.knownPodcasts, knownPodcasts)
-
 
     def textFilterChanged(self):
         regExp = QRegularExpression(self.filterLine.text())
