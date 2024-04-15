@@ -132,6 +132,7 @@ class Form(QObject):
             line = [title, date, url, stamp, tracknumber]
             self.episodeModel.appendRow(line)
         self.proxyModel.sort(3, Qt.DescendingOrder)
+        self.treeView.resizeColumnToContents(0)
         mostRecent = self.proxyModel.index(0, 3).data()
         self.knownPodcasts[rssLink] = mostRecent
         with open('knownPodcasts.pickle', 'wb') as knownPodcasts:
